@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>pointcloud2_cluster_tracking</name>
+  <version>1.0.0</version>
+  <description>The pointcloud2_cluster_tracking package</description>
+
+  <author email="cathrine.m.oik@gmail.com">Katerina Oikonomou</author>
+
+  <maintainer email="cathrine.m.oik@gmail.com">Katerina Oikonomou</maintainer>
+  <maintainer email="gstavrinos@iit.demokritos.gr">George Stavrinos</maintainer>
+
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>pointcloud_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>pcl_ros</depend>
+  <depend>roscpp</depend>
+  <depend>tf</depend>
+
+  <export>
+  </export>
+</package>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<launch>
+    <node pkg="pointcloud2_cluster_tracking" type="pointcloud2_cluster_tracking" respawn="false" name="pointcloud2_cluster_tracking" output="screen">
+        <rosparam file="$(find pointcloud2_cluster_tracking)/config/param.yaml" command="load" />
+    </node>
+</launch>

@@ -1,0 +1,6 @@
+input_topic: pointcloud2_clustering/clusters
+out_topic: pointcloud2_cluster_tracking/clusters
+
+size: 2
+max_dist: 9.0
+overlap: 0.2

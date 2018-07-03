@@ -114,7 +114,7 @@ ros::Subscriber sub;
 
 bool b = true;
 int size , max_id ;
-double overlap, offset z_dist_offset;
+double overlap, offset ;
 
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 
@@ -174,7 +174,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
 
             for (unsigned k=0; k < cloud.points.size(); k++){
-                cloud.points[k].z += offset;
+                cloud.points[k].z -= offset;
             }
 
             sensor_msgs::PointCloud2 pc2;

@@ -17,7 +17,6 @@ class Centroid_tracking{
 public:
 
     int max_id ; 
-    double max_dist ;
 
     pointcloud_msgs::PointCloud2_Segments base_msg;
 
@@ -25,7 +24,6 @@ public:
     {
         this->base_msg = base_msg ;
         this->max_id = max_id ;
-        this->max_dist = 0;
     }
 
     void track ( pointcloud_msgs::PointCloud2_Segments& msg ) {
@@ -58,7 +56,6 @@ public:
 
             pcl::PointCloud<pcl::PointXYZ> cloud2;
             pcl::fromPCLPointCloud2 ( pc2 , cloud2 );
-            // ROS_INFO("%lu" , cloud2.points.size());
 
             Eigen::Vector4f base_centroid;
             pcl::compute3DCentroid ( cloud2 , base_centroid);
@@ -117,7 +114,7 @@ ros::Subscriber sub;
 
 bool b = true;
 int size , max_id ;
-double overlap, offset , max ;
+double overlap, offset z_dist_offset;
 
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 
@@ -156,16 +153,15 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     }
 
     if ( t !=NULL ) {
-        t->max_dist = max;
         // ROS_WARN("0:%u" , v_[1].cluster_id[0]);
         t->track( v_[1] );
         // ROS_WARN("1:%u" , v_[1].cluster_id[0]);
     }
 
+
     for (unsigned i=0; i < v_.size(); i++)
     {
         double offset;
-
         if ( i > 0 ){
             offset = ( 1.0 - overlap ) * (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor );
         }
@@ -206,7 +202,6 @@ int main(int argc, char** argv){
 
 
     n_.param("pointcloud2_cluster_tracking/size", size , 2);
-    n_.param("pointcloud2_cluster_tracking/max_dist", max , 9.0);
     n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));

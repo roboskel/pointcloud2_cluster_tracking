@@ -114,7 +114,10 @@ ros::Subscriber sub;
 
 bool b = true;
 int size , max_id ;
+double time_offset ;
 double overlap, offset ;
+double z_overlap_height_min , z_overlap_height_max , height_after, height_before;
+
 
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 
@@ -163,7 +166,8 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     {
         double offset;
         if ( i > 0 ){
-            offset = ( 1.0 - overlap ) * (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor );
+            time_offset = (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor ) ;
+            offset = ( 1.0 - overlap ) * time_offset;
         }
         else {
             offset = 0.0;
@@ -174,14 +178,22 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
 
             for (unsigned k=0; k < cloud.points.size(); k++){
-                cloud.points[k].z -= offset;
+                // z_overlap_height_min = cloud.points[k].z - offset ;
+                height_before = cloud.points[k].z ;
+
+                cloud.points[k].z = height_before + offset ;
+                height_after = cloud.points[k].z ;
+
+                z_overlap_height_min = height_before - (1.0 - (offset / time_offset));
+
+                z_overlap_height_max = height_after - height_before ;
             }
 
             sensor_msgs::PointCloud2 pc2;
             sensor_msgs::convertPointCloudToPointCloud2( cloud , pc2 );
             c_.clusters.push_back( pc2 );
-
         }
+
         for (int k=0; k < v_[i].cluster_id.size(); k++){
             c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }

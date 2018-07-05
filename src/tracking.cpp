@@ -10,6 +10,7 @@
 #include <pcl/impl/point_types.hpp>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/ChannelFloat32.h>
+#include <pcl/filters/extract_indices.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <pointcloud_msgs/PointCloud2_Segments.h>
 
@@ -110,16 +111,54 @@ public:
 };
 
 ros::Publisher pub;
+ros::Publisher pub2;
 ros::Subscriber sub;
 
 bool b = true;
 int size , max_id ;
 double time_offset ;
 double overlap, offset ;
+
 double z_overlap_height_min , z_overlap_height_max , height_after, height_before;
 
-
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
+
+
+std::pair<double,double> calculate_offset (const std::vector<pointcloud_msgs::PointCloud2_Segments> v , const pointcloud_msgs::PointCloud2_Segments& msg){
+    pointcloud_msgs::PointCloud2_Segments c_;
+
+    for (unsigned i=0; i < v.size(); i++)
+    {
+        double offset;
+        if ( i > 0 ){
+            time_offset = (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()) * (double)( msg.factor ) ;
+            offset = ( 1.0 - overlap ) * time_offset;
+        }
+        else {
+            offset = 0.0;
+        }
+
+        for (unsigned j=0; j < v[i].clusters.size(); j++){
+            sensor_msgs::PointCloud cloud;
+            sensor_msgs::convertPointCloud2ToPointCloud( v[i].clusters[j] , cloud );
+
+            for (unsigned k=0; k < cloud.points.size(); k++){
+
+                height_before = cloud.points[k].z ;
+                cloud.points[k].z = height_before + offset ;
+                height_after = cloud.points[k].z ;
+
+                /* the height of the overlap */
+                z_overlap_height_min = height_before - (1.0 - (offset / time_offset));
+                z_overlap_height_max = height_after - height_before ;
+            }
+        }
+    }
+    return std::make_pair(z_overlap_height_min, z_overlap_height_max) ;
+
+}
+
+
 
 void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
@@ -155,47 +194,60 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         t = NULL;
     }
 
-    if ( t !=NULL ) {
+    if ( t != NULL ) {
         // ROS_WARN("0:%u" , v_[1].cluster_id[0]);
+        
         t->track( v_[1] );
         // ROS_WARN("1:%u" , v_[1].cluster_id[0]);
     }
+    std::pair<double,double> z_height = calculate_offset(v_ , msg);
+    z_overlap_height_min = z_height.first ;
+    z_overlap_height_max = z_height.second;
 
+    if ( z_overlap_height_min != z_overlap_height_max and z_overlap_height_max != NAN ){
+        for (unsigned i=0; i < v_.size(); i++)
+       {
+            for (unsigned j=0; j < v_[i].clusters.size(); j++){
+                sensor_msgs::PointCloud cloud;
+                sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
 
-    for (unsigned i=0; i < v_.size(); i++)
-    {
-        double offset;
-        if ( i > 0 ){
-            time_offset = (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor ) ;
-            offset = ( 1.0 - overlap ) * time_offset;
-        }
-        else {
-            offset = 0.0;
-        }
+                for (unsigned k=0; k < cloud.points.size(); k++){
 
-        for (unsigned j=0; j < v_[i].clusters.size(); j++){
-            sensor_msgs::PointCloud cloud;
-            sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
+                    if ( cloud.points[k].z > z_overlap_height_min and cloud.points[k].z > z_overlap_height_max){
+                        pcl::PCLPointCloud2 pc2 ;
+                        sensor_msgs::PointCloud2 cl2;
 
-            for (unsigned k=0; k < cloud.points.size(); k++){
-                // z_overlap_height_min = cloud.points[k].z - offset ;
-                height_before = cloud.points[k].z ;
+                        sensor_msgs::convertPointCloudToPointCloud2( cloud , cl2 );
+                        pcl_conversions::toPCL ( cl2 , pc2 );
 
-                cloud.points[k].z = height_before + offset ;
-                height_after = cloud.points[k].z ;
+                        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>);
+                        pcl::fromPCLPointCloud2 ( pc2 , *cloud2 );
+                        pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+                        pcl::ExtractIndices<pcl::PointXYZ> extract ;
+                        for (int i=0; i < (*cloud2).size(); i++){
+                            pcl::PointXYZ pt(cloud2->points[i].x , cloud2->points[i].y , cloud2->points[i].z);
+                            if (pt.z < z_overlap_height_max and pt.z > z_overlap_height_min){
+                                inliers->indices.push_back(i);
+                            }
+                        }
+                        extract.setInputCloud(cloud2);
+                        extract.setIndices(inliers);
+                        extract.setNegative(true);
+                        extract.filter(*cloud2);
 
-                z_overlap_height_min = height_before - (1.0 - (offset / time_offset));
-
-                z_overlap_height_max = height_after - height_before ;
+                        // ROS_WARN("1");
+                        sensor_msgs::PointCloud2 output;
+                        pcl::PCLPointCloud2 pcl_cloud;
+                        pcl::toPCLPointCloud2(*cloud2, pcl_cloud);
+                        pcl_conversions::fromPCL(pcl_cloud, output);
+                        pub2.publish(output);
+                        c_.clusters.push_back( output );
+                    }
+                }
             }
-
-            sensor_msgs::PointCloud2 pc2;
-            sensor_msgs::convertPointCloudToPointCloud2( cloud , pc2 );
-            c_.clusters.push_back( pc2 );
-        }
-
-        for (int k=0; k < v_[i].cluster_id.size(); k++){
-            c_.cluster_id.push_back(v_[i].cluster_id[k]);
+            for (int k=0; k < v_[i].cluster_id.size(); k++){
+                c_.cluster_id.push_back(v_[i].cluster_id[k]);
+            }
         }
     }
 
@@ -221,6 +273,7 @@ int main(int argc, char** argv){
 
     sub = n_.subscribe( input_topic, 1 , callback);
     pub = n_.advertise<pointcloud_msgs::PointCloud2_Segments>( out_topic, 1);
+    pub2 = n_.advertise<sensor_msgs::PointCloud2>( "skatopaido", 1);
 
     ros::spin();
 }

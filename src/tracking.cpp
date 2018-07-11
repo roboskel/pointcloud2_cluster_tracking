@@ -121,41 +121,40 @@ double overlap, offset ;
 
 double z_overlap_height_min , z_overlap_height_max , height_after, height_before;
 
-std::vector<pointcloud_msgs::PointCloud2_Segments> v;
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 std::vector<pointcloud_msgs::PointCloud2_Segments> new_v;
 
-
 std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Segments vector){
-    pointcloud_msgs::PointCloud2_Segments c_;
 
-    v.push_back(vector);
-    for (unsigned i=0; i < v.size(); i++)
+    v_.push_back(vector);
+    if (v_.size() > size){
+        v_.erase(v_.begin());
+    }
+    for (unsigned i=0; i < v_.size(); i++)
     {
         double offset;
         if ( i > 0 ){
-            time_offset = (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()) * (double)( vector.factor ) ;
+            time_offset = (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( vector.factor ) ;
             offset = ( 1.0 - overlap ) * time_offset;
-            // ROS_WARN("2333:%f", (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()));
         }
         else {
             offset = 0.0;
         }
-        ROS_WARN("factor:%u", vector.factor);
-        ROS_WARN("offset:%f", offset);
+        // ROS_WARN("factor:%u", vector.factor);
+        // ROS_WARN("offset:%f", offset);
 
 
-        for (unsigned j=0; j < v[i].clusters.size(); j++){
+        for (unsigned j=0; j < v_[i].clusters.size(); j++){
             sensor_msgs::PointCloud cloud;
-            sensor_msgs::convertPointCloud2ToPointCloud( v[i].clusters[j] , cloud );
-            // ROS_WARN("1");
+            sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
+
             for (unsigned k=0; k < cloud.points.size(); k++){
-                // ROS_WARN("12121");
+
                 height_before = cloud.points[k].z ;
                 cloud.points[k].z = height_before + offset ;
-                // ROS_WARN("3:%f", height_before);
+
                 height_after = cloud.points[k].z ;
-                // ROS_WARN("34:%f", height_after);
+
                 /* the height of the overlap */
                 if ( height_before != height_after and height_before != NAN and height_after != NAN){
                     z_overlap_height_min = height_before - (1.0 - (offset / time_offset));
@@ -165,8 +164,6 @@ std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Se
             }
         }
     }
-    ROS_WARN("z_overlap_height_max:%f", z_overlap_height_max);
-    ROS_WARN("z_overlap_height_min:%f", z_overlap_height_min);
     return std::make_pair(z_overlap_height_min, z_overlap_height_max) ;
 
 }
@@ -175,38 +172,29 @@ std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Se
 
 void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
-    pointcloud_msgs::PointCloud2_Segments c_;
     sensor_msgs::PointCloud cloud;
-//v_ has the original msg clusters with pointcloud2
-    v_.push_back(msg);
-    // for (int i=0; i < v_.size(); i++){
-        std::pair<double,double> z_height = calculate_offset(msg);
-        ROS_WARN("000:%f ", z_overlap_height_max);
-        ROS_WARN("333:%f ", z_overlap_height_min);
-        // ROS_WARN("2:%u", v_[0]);
-        z_overlap_height_min = z_height.first ;
-        ROS_WARN("111:%f ", z_overlap_height_min);
-        // ROS_WARN("22222:%f ", z_overlap_height_min);
+    pointcloud_msgs::PointCloud2_Segments c_;
+    pointcloud_msgs::PointCloud2_Segments temp_c;
 
-        z_overlap_height_max = z_height.second;
-    // }
-
-    //new_v is a vector with clusters and is empty
-    // c_ is a pointcloud msg 
+    //v_.push_back(msg);
+    v_.push_back( msg );
+    std::pair<double,double> z_height = calculate_offset(msg);
+    z_overlap_height_min = z_height.first ;
+    z_overlap_height_max = z_height.second;
 
     if ( z_overlap_height_min != z_overlap_height_max and z_overlap_height_max != NAN ){
+
         for (unsigned i=0; i < v_.size(); i++)
        {
-        ROS_WARN("1");
             for (unsigned j=0; j < v_[i].clusters.size(); j++){
                 sensor_msgs::PointCloud cloud;
                 sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
-                // ROS_WARN("4");
                 for (unsigned k=0; k < cloud.points.size(); k++){
 
                     if ( cloud.points[k].z > z_overlap_height_min and cloud.points[k].z < z_overlap_height_max){
                         pcl::PCLPointCloud2 pc2 ;
                         sensor_msgs::PointCloud2 cl2;
+                        // ROS_WARN("2");
 
                         sensor_msgs::convertPointCloudToPointCloud2( cloud , cl2 );
                         pcl_conversions::toPCL ( cl2 , pc2 );
@@ -225,40 +213,41 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
                         extract.setIndices(inliers);
                         extract.setNegative(true);
                         extract.filter(*cloud2);
-                        ROS_WARN("5");
                         sensor_msgs::PointCloud2 output;
                         pcl::PCLPointCloud2 pcl_cloud;
                         pcl::toPCLPointCloud2(*cloud2, pcl_cloud);
                         pcl_conversions::fromPCL(pcl_cloud, output);
-                        c_.clusters.push_back( output );
-                        new_v.push_back(c_);
+                        temp_c.clusters.push_back( output );
+
+
                     }
                 }
-                // ROS_WARN("2222:%u", new_v.size());
             }
         }
     }
-
+    new_v.push_back( temp_c );
+    for (int i=0; i < new_v.size(); i++){
+        for (int j=0; j < new_v[i].clusters.size(); j++){
+            new_v[i].cluster_id.push_back(j);
+        }
+    }
     Centroid_tracking* t;
 
     if (new_v.size() > size){
         new_v.erase(new_v.begin());
+
         if ( b ){
             for (unsigned i=0 ; i < new_v[0].clusters.size(); i++){
                 new_v[0].cluster_id.push_back(i);
-                // ROS_WARN("3");
             }
             b = false;
         }
         for (int i=0 ; i < new_v[1].clusters.size(); i++){
             new_v[1].cluster_id.push_back(i);
         }
-
         for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
             if (new_v[0].cluster_id[i] > max_id){
                 max_id = new_v[0].cluster_id[i];
-                ROS_WARN("11");
-                // std::pair<double,double> z_height = calculate_offset(new_v[0] , msg);
             }
         }
         t = new Centroid_tracking( new_v[0] , max_id ) ;
@@ -269,17 +258,51 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     }
 
     if ( t != NULL ) {
-        // ROS_WARN("0:%u" , v_[1].cluster_id[0]);
-        // ROS_WARN("6");
         t->track( new_v[1] );
-        // ROS_WARN("1:%u" , v_[1].cluster_id[0]);
     }
-    for (unsigned i=0; i < new_v.size(); i++){
-        for (unsigned j=0; j < new_v[i].clusters.size(); j++){
-            for (unsigned k=0; k < new_v[i].cluster_id.size(); k++){
-                c_.cluster_id.push_back(new_v[i].cluster_id[k]);
-                // ROS_WARN("7");
+
+    if (v_.size() > size){
+        v_.erase(v_.begin());
+        for (int k=0; k < v_.size(); k++){
+            for ( int u=0; u < v_[k].clusters.size(); u++){
+                v_[k].cluster_id.push_back(u);
             }
+
+            v_[k].cluster_id.clear();
+
+
+            for (int j=0; j < v_[k].cluster_id.size(); j++){
+                v_[k].cluster_id.push_back(new_v[k].cluster_id[j]);
+            }
+        }
+    }
+
+    for (unsigned i=0; i < v_.size(); i++){
+        double offset ;
+
+        if ( i > 0 ){
+            offset = (1.0 - overlap) * (double)(ros::Duration (v_[i].first_stamp - v_[0].first_stamp).toSec()) * (double) (msg.factor);
+
+        }
+        else {
+            offset = 0.0 ;
+        }
+        for ( unsigned j=0; j < v_[i].clusters.size(); j++){
+            sensor_msgs::PointCloud cloud ;
+            sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j], cloud );
+            for ( unsigned k=0; k < cloud.points.size(); k++){
+                cloud.points[k].z += offset; 
+            }
+
+            sensor_msgs::PointCloud2 pc2;
+            sensor_msgs::convertPointCloudToPointCloud2 ( cloud , pc2);
+            c_.clusters.push_back( pc2 );
+
+        }
+        // for (int l=0; l < )
+        for (int k=0; k < v_[i].cluster_id.size(); k++){
+            // ROS_WARN("3:%u" , new_v[1].cluster_id[0]);
+            c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }
     }
 

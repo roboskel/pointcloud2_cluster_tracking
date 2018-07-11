@@ -126,7 +126,7 @@ std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 std::vector<pointcloud_msgs::PointCloud2_Segments> new_v;
 
 
-std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Segments vector , const pointcloud_msgs::PointCloud2_Segments& msg){
+std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Segments vector){
     pointcloud_msgs::PointCloud2_Segments c_;
 
     v.push_back(vector);
@@ -134,20 +134,23 @@ std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Se
     {
         double offset;
         if ( i > 0 ){
-            time_offset = (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()) * (double)( msg.factor ) ;
+            time_offset = (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()) * (double)( vector.factor ) ;
             offset = ( 1.0 - overlap ) * time_offset;
             // ROS_WARN("2333:%f", (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()));
         }
         else {
             offset = 0.0;
         }
+        ROS_WARN("factor:%u", vector.factor);
+        ROS_WARN("offset:%f", offset);
+
 
         for (unsigned j=0; j < v[i].clusters.size(); j++){
             sensor_msgs::PointCloud cloud;
             sensor_msgs::convertPointCloud2ToPointCloud( v[i].clusters[j] , cloud );
             // ROS_WARN("1");
             for (unsigned k=0; k < cloud.points.size(); k++){
-
+                // ROS_WARN("12121");
                 height_before = cloud.points[k].z ;
                 cloud.points[k].z = height_before + offset ;
                 // ROS_WARN("3:%f", height_before);
@@ -157,11 +160,13 @@ std::pair<double,double> calculate_offset (const pointcloud_msgs::PointCloud2_Se
                 if ( height_before != height_after and height_before != NAN and height_after != NAN){
                     z_overlap_height_min = height_before - (1.0 - (offset / time_offset));
                     z_overlap_height_max = height_after - height_before ;
-                    ROS_WARN("1:%f" , z_overlap_height_max);
+                    // ROS_WARN("1:%f" , z_overlap_height_max);
                 }
             }
         }
     }
+    ROS_WARN("z_overlap_height_max:%f", z_overlap_height_max);
+    ROS_WARN("z_overlap_height_min:%f", z_overlap_height_min);
     return std::make_pair(z_overlap_height_min, z_overlap_height_max) ;
 
 }
@@ -175,7 +180,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 //v_ has the original msg clusters with pointcloud2
     v_.push_back(msg);
     // for (int i=0; i < v_.size(); i++){
-        std::pair<double,double> z_height = calculate_offset(v_[0] , msg);
+        std::pair<double,double> z_height = calculate_offset(msg);
         ROS_WARN("000:%f ", z_overlap_height_max);
         ROS_WARN("333:%f ", z_overlap_height_min);
         // ROS_WARN("2:%u", v_[0]);
@@ -192,6 +197,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     if ( z_overlap_height_min != z_overlap_height_max and z_overlap_height_max != NAN ){
         for (unsigned i=0; i < v_.size(); i++)
        {
+        ROS_WARN("1");
             for (unsigned j=0; j < v_[i].clusters.size(); j++){
                 sensor_msgs::PointCloud cloud;
                 sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );

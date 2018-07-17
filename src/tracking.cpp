@@ -116,7 +116,6 @@ double time_offset ;
 double overlap, offset ;
 
 
-std::vector<pointcloud_msgs::PointCloud2_Segments> v;
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 std::vector<pointcloud_msgs::PointCloud2_Segments> new_v(2);
 
@@ -126,21 +125,22 @@ std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segme
 
     double height_after ,height_before ;
     double z_min = std::numeric_limits<double>::max();
+    std::vector<pointcloud_msgs::PointCloud2_Segments> vec;
 
-    v_.push_back(vector);
+    vec.push_back(vector);
 
-    if (v_.size() > size){
-        v_.erase(v_.begin());
+    if (vec.size() > size){
+        vec.erase(vec.begin());
     }
-    for (unsigned i=0; i < v_.size(); i++)
+    for (unsigned i=0; i < vec.size(); i++)
     {
         double offset;
         if ( i > 0 ){
-            time_offset = (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( vector.factor ) ;
+            time_offset = (double)( ros::Duration( vec[i].first_stamp - vec[0].first_stamp ).toSec()) * (double)( vector.factor ) ;
             offset = ( 1.0 - overlap ) * time_offset;
-            for (unsigned j=0; j < v_[i].clusters.size(); j++){
+            for (unsigned j=0; j < vec[i].clusters.size(); j++){
                 sensor_msgs::PointCloud cloud;
-                sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
+                sensor_msgs::convertPointCloud2ToPointCloud( vec[i].clusters[j] , cloud );
 
                 for (unsigned k=0; k < cloud.points.size(); k++){
                     cloud.points[k].z += offset ;
@@ -155,9 +155,9 @@ std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segme
 
             offset = 0.0;
 
-            for (unsigned j=0; j < v_[0].clusters.size(); j++){
+            for (unsigned j=0; j < vec[0].clusters.size(); j++){
                 sensor_msgs::PointCloud cloud;
-                sensor_msgs::convertPointCloud2ToPointCloud( v_[0].clusters[j] , cloud );
+                sensor_msgs::convertPointCloud2ToPointCloud( vec[0].clusters[j] , cloud );
 
                 for ( unsigned l=0; l < cloud.points.size(); l++){
                     if ( cloud.points[l].z > z_max ){
@@ -224,9 +224,9 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     overlap_height_min = z_height.first;
     overlap_height_max = z_height.second;
 
-    v_.push_back(msg);
-
     Centroid_tracking* t;
+
+    v_.push_back(msg);
 
     if (v_.size() > size){
         v_.erase(v_.begin());
@@ -246,7 +246,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
         for (int i=0; i < v_[1].clusters.size(); i++){
             new_v[1].cluster_id.push_back(i);
-            v_[1].cluster_id.push_back(i);
+            // v_[1].cluster_id.push_back(i);
         }
 
         for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
@@ -264,32 +264,28 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     if ( t != NULL ){
         t-> track( new_v[1] );
         ////////////////
-        v_[1].cluster_id.clear();
+        // v_[1].cluster_id.clear();
         for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
             v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
         }
         /////////
     }
 
-    v.push_back(msg);
 
-    if (v.size() > size){
-        v.erase(v.begin());
-    }
-    for (unsigned i=0; i < v.size(); i++)
+    for (unsigned i=0; i < v_.size(); i++)
     {
         double offset;
         if ( i > 0 ){
-            offset = ( 1.0 - overlap ) * (double)( ros::Duration( v[i].first_stamp - v[0].first_stamp ).toSec()) * (double)( msg.factor );
+            offset = ( 1.0 - overlap ) * (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor );
 
         }
         else {
             offset = 0.0;
         }
 
-        for (unsigned j=0; j < v[i].clusters.size(); j++){
+        for (unsigned j=0; j < v_[i].clusters.size(); j++){
             sensor_msgs::PointCloud cloud;
-            sensor_msgs::convertPointCloud2ToPointCloud( v[i].clusters[j] , cloud );
+            sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
 
             for (unsigned k=0; k < cloud.points.size(); k++){
                 cloud.points[k].z += offset;
@@ -299,7 +295,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             sensor_msgs::convertPointCloudToPointCloud2( cloud , pc2 );
             c_.clusters.push_back( pc2 );
         }
-        ////////// !!!!!!!!!!!!! //////////
+
         for (int k=0; k < v_[i].cluster_id.size(); k++){
             c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }

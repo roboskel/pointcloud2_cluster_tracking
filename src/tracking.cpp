@@ -189,6 +189,17 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         for (int k=0; k < v_[i].cluster_id.size(); k++){
             c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }
+
+        c_.factor = msg.factor ;
+        c_.overlap = msg.overlap ;
+        c_.num_scans = msg.num_scans ;
+        c_.first_stamp = msg.first_stamp ;
+        c_.angle_min = msg.angle_min;
+        c_.angle_max = msg.angle_max;
+        c_.angle_increment = msg.angle_increment;
+        c_.range_min = msg.range_min;
+        c_.range_max = msg.range_max;
+        c_.scan_time = msg.scan_time;
     }
 
     pub.publish(c_);

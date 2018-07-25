@@ -110,7 +110,7 @@ ros::Publisher pub;
 ros::Subscriber sub;
 
 bool b = true;
-int size , max_id ;
+int size , max_id ,method;
 double overlap, offset ;
 
 
@@ -226,9 +226,11 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     sensor_msgs::PointCloud cloud;
     pointcloud_msgs::PointCloud2_Segments c_;
 
-    std::pair<double,double> z_height = overlap_range(msg);
-    overlap_height_min = z_height.first;
-    overlap_height_max = z_height.second;
+    if ( method == 1 ){
+        std::pair<double,double> z_height = overlap_range(msg);
+        overlap_height_min = z_height.first;
+        overlap_height_max = z_height.second;
+    }
 
     v_.push_back(msg);
 
@@ -238,28 +240,50 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         v_.erase(v_.begin());
 
         if ( b ){
-            new_v[0] = clusters_in_overlap(v_[0] , overlap_height_min , overlap_height_max);
+            if ( method == 1 ){
+                new_v[0] = clusters_in_overlap(v_[0] , overlap_height_min , overlap_height_max);
+            }
 
             for (unsigned i=0; i < v_[0].clusters.size(); i++){
-                new_v[0].cluster_id.push_back(i);
+                if ( method == 1){
+                    new_v[0].cluster_id.push_back(i);
+                }
                 v_[0].cluster_id.push_back(i);
             }
             b = false;
         }
-
-        new_v[1] = clusters_in_overlap(v_[1] , overlap_height_min , overlap_height_max);
+        if (method == 1 ){
+            new_v[1] = clusters_in_overlap(v_[1] , overlap_height_min , overlap_height_max);
+        }
 
         for (int i=0; i < v_[1].clusters.size(); i++){
-            new_v[1].cluster_id.push_back(i);
-        }
-
-        for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
-            if ( new_v[0].cluster_id[i] > max_id){
-                max_id = new_v[0].cluster_id[i];
+            if ( method == 1 ){
+                new_v[1].cluster_id.push_back(i);
+            }
+            else if ( method == 2) {
+                v_[1].cluster_id.push_back(i);
             }
         }
-
-        t = new Centroid_tracking( new_v[0] , max_id );
+        if (method == 1 ){
+            for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
+                if ( new_v[0].cluster_id[i] > max_id){
+                    max_id = new_v[0].cluster_id[i];
+                }
+            }
+        }
+        else if (method == 2){
+           for (unsigned i=0; i < v_[0].cluster_id.size(); i++){
+                if (v_[0].cluster_id[i] > max_id){
+                    max_id = v_[0].cluster_id[i];
+                }
+            }
+        }
+        if (method == 1){
+            t = new Centroid_tracking( new_v[0] , max_id );
+        }
+        else if (method == 2 ){
+            t = new Centroid_tracking( v_[0] , max_id );
+        }
     }
 
     else {
@@ -267,10 +291,17 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     }
 
     if ( t != NULL ){
-        t-> track( new_v[1] );
+        if ( method == 1 ){
+            t-> track( new_v[1] );
+        }
+        else if ( method == 2){
+            t-> track( v_[1] );
+        }
         ////////////////
-        for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
-            v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
+        if ( method == 1){
+            for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
+                v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
+            }
         }
         //////////////
     }
@@ -334,6 +365,7 @@ int main(int argc, char** argv){
 
 
     n_.param("pointcloud2_cluster_tracking/size", size , 2);
+    n_.param("pointcloud2_cluster_tracking/method", method , 1);
     n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));

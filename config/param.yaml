@@ -1,5 +1,7 @@
 input_topic: pointcloud2_clustering/clusters
 out_topic: pointcloud2_cluster_tracking/clusters
 
+method: 1 # 1st method is for tracking clusters in overlap and 2nd method is for tracking clusters (not in overlap)
+
 size: 2
 overlap: 0.2

@@ -10,14 +10,14 @@
 #include <pcl/impl/point_types.hpp>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/ChannelFloat32.h>
+#include <pcl/filters/extract_indices.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <pointcloud_msgs/PointCloud2_Segments.h>
 
 class Centroid_tracking{
 public:
 
-    int max_id ; 
-    double max_dist ;
+    int max_id ;
 
     pointcloud_msgs::PointCloud2_Segments base_msg;
 
@@ -25,7 +25,6 @@ public:
     {
         this->base_msg = base_msg ;
         this->max_id = max_id ;
-        this->max_dist = 0;
     }
 
     void track ( pointcloud_msgs::PointCloud2_Segments& msg ) {
@@ -45,8 +44,6 @@ public:
 
             Eigen::Vector4f base_centroid;
             pcl::compute3DCentroid ( cloud2 , base_centroid);
-            //std::cerr << " Cluster_id " << base_msg.cluster_id[i] << "  centroid_x : " << base_centroid(0) << " centroid_y : " << base_centroid(1) << " centroid_z : " << base_centroid(2) << std::endl;
-
             base_centroid_vec.push_back( base_centroid );
         }
         //second frame
@@ -58,11 +55,8 @@ public:
 
             pcl::PointCloud<pcl::PointXYZ> cloud2;
             pcl::fromPCLPointCloud2 ( pc2 , cloud2 );
-            // ROS_INFO("%lu" , cloud2.points.size());
-
             Eigen::Vector4f base_centroid;
             pcl::compute3DCentroid ( cloud2 , base_centroid);
-            //std::cerr << " ---Cluster_id " << msg.cluster_id[i] << "  centroid_x : " << base_centroid(0) << " centroid_y : " << base_centroid(1) << " centroid_z : " << base_centroid(2) << std::endl;
 
             msg_centroid_vec.push_back( base_centroid );
             msg.cluster_id[i] = -1;
@@ -116,15 +110,127 @@ ros::Publisher pub;
 ros::Subscriber sub;
 
 bool b = true;
-int size , max_id ;
-double overlap, offset , max ;
+int size , max_id ,method;
+double overlap, offset ;
+
 
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
+std::vector<pointcloud_msgs::PointCloud2_Segments> new_v(2);
+
+
+std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segments& cls){
+
+    double z_max = 0 ;
+    double height_after ,height_before ;
+    double z_min = std::numeric_limits<double>::max();
+
+    std::vector<pointcloud_msgs::PointCloud2_Segments> vec;
+
+    vec.push_back(cls);
+
+    if (vec.size() > size){
+        vec.erase(vec.begin());
+    }
+
+    for (unsigned i=0; i < vec.size(); i++)
+    {
+        double offset;
+
+        if ( i > 0 ){
+
+            offset = ( 1.0 - overlap ) * (double)( ros::Duration( vec[i].first_stamp - vec[0].first_stamp ).toSec()) * (double)( cls.factor );
+
+            for (unsigned j=0; j < vec[i].clusters.size(); j++)
+            {
+                sensor_msgs::PointCloud cloud;
+                sensor_msgs::convertPointCloud2ToPointCloud( vec[i].clusters[j] , cloud );
+
+                for (unsigned k=0; k < cloud.points.size(); k++)
+                {
+                    cloud.points[k].z += offset ;
+                    if (cloud.points[k].z < z_min){
+                        z_min = cloud.points[k].z ;
+                    }
+                }
+            }
+        }
+
+        else {
+
+            offset = 0.0;
+
+            for (unsigned j=0; j < vec[0].clusters.size(); j++){
+                sensor_msgs::PointCloud cloud;
+                sensor_msgs::convertPointCloud2ToPointCloud( vec[0].clusters[j] , cloud );
+
+                for ( unsigned l=0; l < cloud.points.size(); l++){
+                    if ( cloud.points[l].z > z_max ){
+                        z_max = cloud.points[l].z;
+                    }
+                }
+            }
+        }
+
+    }
+
+    return std::make_pair( z_max , z_min );
+
+}
+
+pointcloud_msgs::PointCloud2_Segments clusters_in_overlap (const pointcloud_msgs::PointCloud2_Segments& cl , double z_overlap_min , double z_overlap_max ){
+
+    sensor_msgs::PointCloud2 pc1;
+    pointcloud_msgs::PointCloud2_Segments output;
+
+    for ( unsigned i=0; i < cl.clusters.size(); i++){
+
+        sensor_msgs::PointCloud cloud;
+        sensor_msgs::convertPointCloud2ToPointCloud( cl.clusters[i] , cloud );
+
+        pcl::PCLPointCloud2 pc2 ;
+        sensor_msgs::PointCloud2 cl2 ;
+
+        sensor_msgs::convertPointCloudToPointCloud2( cloud , cl2 );
+        pcl_conversions::toPCL ( cl2 , pc2 );
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::fromPCLPointCloud2 ( pc2 , *cloud2 );
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+        pcl::ExtractIndices<pcl::PointXYZ> extract ;
+
+        for (int i=0; i < (*cloud2).size(); i++){
+            pcl::PointXYZ pt(cloud2->points[i].x , cloud2->points[i].y , cloud2->points[i].z);
+            if (pt.z <= z_overlap_max and pt.z >= z_overlap_min){
+                inliers->indices.push_back(i);
+            }
+        }
+        extract.setInputCloud(cloud2);
+        extract.setIndices(inliers);
+        extract.setNegative(true);
+        extract.filter(*cloud2);
+        pcl::PCLPointCloud2 pcl_cloud;
+        pcl::toPCLPointCloud2(*cloud2, pcl_cloud);
+        pcl_conversions::fromPCL(pcl_cloud, pc1);
+    }
+    output.clusters.push_back(pc1);
+
+    return output;
+}
+
+
 
 void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
-    pointcloud_msgs::PointCloud2_Segments c_;
+    double overlap_height_min , overlap_height_max ;
+
     sensor_msgs::PointCloud cloud;
+    pointcloud_msgs::PointCloud2_Segments c_;
+
+    if ( method == 1 ){
+        std::pair<double,double> z_height = overlap_range(msg);
+        overlap_height_min = z_height.first;
+        overlap_height_max = z_height.second;
+    }
 
     v_.push_back(msg);
 
@@ -132,35 +238,74 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     if (v_.size() > size){
         v_.erase(v_.begin());
+
         if ( b ){
-            for (unsigned i=0 ; i < v_[0].clusters.size(); i++){
+            if ( method == 1 ){
+                new_v[0] = clusters_in_overlap(v_[0] , overlap_height_min , overlap_height_max);
+            }
+
+            for (unsigned i=0; i < v_[0].clusters.size(); i++){
+                if ( method == 1){
+                    new_v[0].cluster_id.push_back(i);
+                }
                 v_[0].cluster_id.push_back(i);
             }
             b = false;
         }
-        for (int i=0 ; i < v_[1].clusters.size(); i++){
-            v_[1].cluster_id.push_back(i);
+        if (method == 1 ){
+            new_v[1] = clusters_in_overlap(v_[1] , overlap_height_min , overlap_height_max);
         }
 
-        for (unsigned i=0; i < v_[0].cluster_id.size(); i++){
-            if (v_[0].cluster_id[i] > max_id){
-                max_id = v_[0].cluster_id[i];
+        for (int i=0; i < v_[1].clusters.size(); i++){
+            if ( method == 1 ){
+                new_v[1].cluster_id.push_back(i);
+            }
+            else if ( method == 2) {
+                v_[1].cluster_id.push_back(i);
             }
         }
-
-        t = new Centroid_tracking( v_[0] , max_id ) ;
+        if (method == 1 ){
+            for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
+                if ( new_v[0].cluster_id[i] > max_id){
+                    max_id = new_v[0].cluster_id[i];
+                }
+            }
+        }
+        else if (method == 2){
+           for (unsigned i=0; i < v_[0].cluster_id.size(); i++){
+                if (v_[0].cluster_id[i] > max_id){
+                    max_id = v_[0].cluster_id[i];
+                }
+            }
+        }
+        if (method == 1){
+            t = new Centroid_tracking( new_v[0] , max_id );
+        }
+        else if (method == 2 ){
+            t = new Centroid_tracking( v_[0] , max_id );
+        }
     }
 
     else {
         t = NULL;
     }
 
-    if ( t !=NULL ) {
-        t->max_dist = max;
-        // ROS_WARN("0:%u" , v_[1].cluster_id[0]);
-        t->track( v_[1] );
-        // ROS_WARN("1:%u" , v_[1].cluster_id[0]);
+    if ( t != NULL ){
+        if ( method == 1 ){
+            t-> track( new_v[1] );
+        }
+        else if ( method == 2){
+            t-> track( v_[1] );
+        }
+        ////////////////
+        if ( method == 1){
+            for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
+                v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
+            }
+        }
+        //////////////
     }
+
 
     for (unsigned i=0; i < v_.size(); i++)
     {
@@ -169,11 +314,13 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         if ( i > 0 ){
             offset = ( 1.0 - overlap ) * (double)( ros::Duration( v_[i].first_stamp - v_[0].first_stamp ).toSec()) * (double)( msg.factor );
         }
+
         else {
             offset = 0.0;
         }
 
-        for (unsigned j=0; j < v_[i].clusters.size(); j++){
+        for (unsigned j=0; j < v_[i].clusters.size(); j++)
+        {
             sensor_msgs::PointCloud cloud;
             sensor_msgs::convertPointCloud2ToPointCloud( v_[i].clusters[j] , cloud );
 
@@ -184,11 +331,23 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             sensor_msgs::PointCloud2 pc2;
             sensor_msgs::convertPointCloudToPointCloud2( cloud , pc2 );
             c_.clusters.push_back( pc2 );
-
         }
+
         for (int k=0; k < v_[i].cluster_id.size(); k++){
             c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }
+
+        c_.factor = msg.factor ;
+        c_.overlap = msg.overlap ;
+        c_.num_scans = msg.num_scans ;
+        c_.first_stamp = msg.first_stamp ;
+        c_.angle_min = msg.angle_min;
+        c_.angle_max = msg.angle_max;
+        c_.angle_increment = msg.angle_increment;
+        c_.range_min = msg.range_min;
+        c_.range_max = msg.range_max;
+        c_.scan_time = msg.scan_time;
+
     }
 
     pub.publish(c_);
@@ -206,7 +365,7 @@ int main(int argc, char** argv){
 
 
     n_.param("pointcloud2_cluster_tracking/size", size , 2);
-    n_.param("pointcloud2_cluster_tracking/max_dist", max , 9.0);
+    n_.param("pointcloud2_cluster_tracking/method", method , 1);
     n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));

@@ -349,6 +349,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         c_.range_min = msg.range_min;
         c_.range_max = msg.range_max;
         c_.scan_time = msg.scan_time;
+        c_.rec_time = msg.rec_time;
     }
 
     pub.publish(c_);

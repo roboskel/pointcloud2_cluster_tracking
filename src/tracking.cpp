@@ -98,18 +98,12 @@ public:
             }
             msg.cluster_id[j] = msg.cluster_id[j] == -1 ? ++max_id : msg.cluster_id[j];
         }
-
-        // for (unsigned j=0; j < size_new; j++){
-        //     std::cout << "cluster#" << j << ", clusterID:" << msg.cluster_id[j] << std::endl;
-        // }
     }
-
 };
 
 ros::Publisher pub;
 ros::Subscriber sub;
 
-bool b = true;
 int size , max_id ,method;
 double overlap, offset ;
 
@@ -236,23 +230,14 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     Centroid_tracking* t;
 
-    if (v_.size() > size){
+     if (v_.size() > size){
         v_.erase(v_.begin());
+    }
 
-        if ( b ){
-            if ( method == 1 ){
-                new_v[0] = clusters_in_overlap(v_[0] , overlap_height_min , overlap_height_max);
-            }
+    if(v_.size()>=size) {
 
-            for (unsigned i=0; i < v_[0].clusters.size(); i++){
-                if ( method == 1){
-                    new_v[0].cluster_id.push_back(i);
-                }
-                v_[0].cluster_id.push_back(i);
-            }
-            b = false;
-        }
         if (method == 1 ){
+            new_v[0] = v_[0];
             new_v[1] = clusters_in_overlap(v_[1] , overlap_height_min , overlap_height_max);
         }
 
@@ -288,6 +273,10 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     else {
         t = NULL;
+
+        for (unsigned i=0; i < v_[0].clusters.size(); i++){
+                v_[0].cluster_id.push_back(i);
+            }
     }
 
     if ( t != NULL ){
@@ -336,24 +325,24 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         for (int k=0; k < v_[i].cluster_id.size(); k++){
             c_.cluster_id.push_back(v_[i].cluster_id[k]);
         }
-
-        c_.header.stamp = ros::Time::now();
-        c_.header.frame_id = msg.header.frame_id;
-        c_.factor = msg.factor ;
-        c_.overlap = msg.overlap ;
-        c_.num_scans = msg.num_scans ;
-        c_.first_stamp = msg.first_stamp ;
-        c_.angle_min = msg.angle_min;
-        c_.angle_max = msg.angle_max;
-        c_.angle_increment = msg.angle_increment;
-        c_.range_min = msg.range_min;
-        c_.range_max = msg.range_max;
-        c_.scan_time = msg.scan_time;
-        c_.rec_time = msg.rec_time;
     }
 
-    pub.publish(c_);
+    c_.header.stamp = ros::Time::now();
+    c_.header.frame_id = msg.header.frame_id;
+    c_.factor = msg.factor ;
+    c_.overlap = msg.overlap ;
+    c_.num_scans = msg.num_scans ;
+    c_.first_stamp = msg.first_stamp ;
+    c_.angle_min = msg.angle_min;
+    c_.angle_max = msg.angle_max;
+    c_.angle_increment = msg.angle_increment;
+    c_.range_min = msg.range_min;
+    c_.range_max = msg.range_max;
+    c_.scan_time = msg.scan_time;
+    c_.rec_time = msg.rec_time;
+    
 
+    pub.publish(c_);
 }
 
 

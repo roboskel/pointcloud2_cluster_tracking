@@ -239,30 +239,23 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         if (method == 1 ){
             new_v[0] = v_[0];
             new_v[1] = clusters_in_overlap(v_[1] , overlap_height_min , overlap_height_max);
-        }
-
-        for (int i=0; i < v_[1].clusters.size(); i++){
-            if ( method == 1 ){
+        
+            for (int i=0; i < v_[1].clusters.size(); i++) {
                 new_v[1].cluster_id.push_back(i);
             }
-            else if ( method == 2) {
+        }
+        else if ( method == 2) {
+            for (int i=0; i < v_[1].clusters.size(); i++) {
                 v_[1].cluster_id.push_back(i);
             }
         }
-        if (method == 1 ){
-            for (unsigned i=0; i < new_v[0].cluster_id.size(); i++){
-                if ( new_v[0].cluster_id[i] > max_id){
-                    max_id = new_v[0].cluster_id[i];
-                }
+        
+        for (unsigned i=0; i < v_[0].cluster_id.size(); i++){
+            if (v_[0].cluster_id[i] > max_id){
+                max_id = v_[0].cluster_id[i];
             }
         }
-        else if (method == 2){
-           for (unsigned i=0; i < v_[0].cluster_id.size(); i++){
-                if (v_[0].cluster_id[i] > max_id){
-                    max_id = v_[0].cluster_id[i];
-                }
-            }
-        }
+        
         if (method == 1){
             t = new Centroid_tracking( new_v[0] , max_id );
         }
@@ -270,7 +263,6 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             t = new Centroid_tracking( v_[0] , max_id );
         }
     }
-
     else {
         t = NULL;
 
@@ -282,19 +274,15 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     if ( t != NULL ){
         if ( method == 1 ){
             t-> track( new_v[1] );
-        }
-        else if ( method == 2){
-            t-> track( v_[1] );
-        }
-        ////////////////
-        if ( method == 1){
+
             for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
                 v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
             }
         }
-        //////////////
+        else if ( method == 2){
+            t-> track( v_[1] );
+        }
     }
-
 
     for (unsigned i=0; i < v_.size(); i++)
     {

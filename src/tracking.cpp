@@ -17,7 +17,9 @@
 #include <visualization_msgs/Marker.h>
 
 
+
 int marker_flag;
+int maxHungDist;
 
 visualization_msgs::Marker marker_sphere;
 visualization_msgs::Marker marker_line;
@@ -78,29 +80,21 @@ public:
 
         size_t size_old = base_centroid_vec.size();
         size_t size_new = msg_centroid_vec.size();
-        unsigned totalsz = size_old + size_new;
-        std::vector<std::vector<int> > dists(totalsz, std::vector<int>(totalsz , 10000));// TODO currently, 10000 is the maximum (2d) int distance with a 10 meter laser scanner. Initial value represents a point connected to bottom.
+        std::vector<std::vector<int> > dists(size_old, std::vector<int>(size_new , 10000));// TODO currently, 10000 is the maximum (2d) int distance with a 10 meter laser scanner. Initial value represents a point connected to bottom.
 
-        for(unsigned i=0; i < size_old + size_new; i++){
-            for(unsigned j=0; j < size_new + size_old; j++){
-                if(i < size_old and j < size_new){
-                    dists[i][j] = 1000 * sqrt(pow(base_centroid_vec[i][0]-msg_centroid_vec[j][0], 2) + pow(base_centroid_vec[i][1]-msg_centroid_vec[j][1], 2) + pow(base_centroid_vec[i][2]-msg_centroid_vec[j][2], 2));
-                }
-                else if(i >= size_old and j >= size_new){
-                    dists[i][j] = 0; // connecting bottom to bottom is free!
-                }
+
+        for(unsigned i=0; i < size_old; i++){
+            for(unsigned j=0; j < size_new; j++){
+                if(i < size_old and j < size_new)
+                    dists[i][j] = 1000 * sqrt(pow(base_centroid_vec[i][0]-msg_centroid_vec[j][0], 2) + pow(base_centroid_vec[i][1]-msg_centroid_vec[j][1], 2));                 
             }
         }
 
-        Hungarian hungarian(dists , totalsz, totalsz, HUNGARIAN_MODE_MINIMIZE_COST) ;
-        // fprintf(stderr, "cost-matrix:");
-        // hungarian.print_cost();
-        hungarian.solve();
-        // fprintf(stderr, "assignment:");
-        // hungarian.print_assignment();
-        // std::cout << "size_old = " << size_old << ", size_new = " << size_new << std::endl;
+        Hungarian::Result r = Hungarian::Solve(dists, Hungarian::MODE_MINIMIZE_COST);
 
-        dists = hungarian.assignment();
+        //Hungarian::PrintMatrix(r.assignment);
+
+        dists = r.assignment;
 
         if(marker_flag==1) {
 
@@ -110,51 +104,59 @@ public:
             marker_line.colors.clear();
         }
 
+        double dist;
+
         for(unsigned j=0; j < size_new; j++){
             for(unsigned i=0; i < size_old; i++){
+
                 if (dists[i][j] == 1){
-                    msg.cluster_id[j] = base_msg.cluster_id[i];
 
-                    if(marker_flag==1) {
+                    dist = 1000 * sqrt(pow(base_centroid_vec[i][0]-msg_centroid_vec[j][0], 2) + pow(base_centroid_vec[i][1]-msg_centroid_vec[j][1], 2) );
 
-                        uint mod = msg.cluster_id[j] % 10;
+                    if (dist<maxHungDist) {
+                        msg.cluster_id[j] = base_msg.cluster_id[i];
 
-                            
-                        std_msgs::ColorRGBA c;
-                            
-                        c.r = red[mod];
-                        c.g = green[mod];
-                        c.b=blue[mod];
-                        c.a=0.7;
+                        if(marker_flag==1) {
 
+                            uint mod = msg.cluster_id[j] % 10;
 
-                        geometry_msgs::Point p;
-                           
-                        p.x = base_centroid_vec[i][0];
-                        p.y = base_centroid_vec[i][1];
-                        p.z = base_centroid_vec[i][2];
-
-                                                   
-                        marker_line.points.push_back(p);
-                        marker_sphere.points.push_back(p);
+                                
+                            std_msgs::ColorRGBA c;
+                                
+                            c.r = red[mod];
+                            c.g = green[mod];
+                            c.b=blue[mod];
+                            c.a=0.7;
 
 
-                        geometry_msgs::Point pp;                    
+                            geometry_msgs::Point p;
+                               
+                            p.x = base_centroid_vec[i][0];
+                            p.y = base_centroid_vec[i][1];
+                            p.z = base_centroid_vec[i][2];
 
-                        pp.x = msg_centroid_vec[j][0];
-                        pp.y = msg_centroid_vec[j][1];
-                        pp.z = msg_centroid_vec[j][2];
-
-                           
-                        marker_line.points.push_back(pp);
-                        marker_sphere.points.push_back(pp);
+                                                       
+                            marker_line.points.push_back(p);
+                            marker_sphere.points.push_back(p);
 
 
-                        marker_line.colors.push_back(c);
-                        marker_line.colors.push_back(c);
-                        marker_sphere.colors.push_back(c);
-                        c.a=0.3;
-                        marker_sphere.colors.push_back(c);
+                            geometry_msgs::Point pp;                    
+
+                            pp.x = msg_centroid_vec[j][0];
+                            pp.y = msg_centroid_vec[j][1];
+                            pp.z = msg_centroid_vec[j][2];
+
+                               
+                            marker_line.points.push_back(pp);
+                            marker_sphere.points.push_back(pp);
+
+
+                            marker_line.colors.push_back(c);
+                            marker_line.colors.push_back(c);
+                            marker_sphere.colors.push_back(c);
+                            c.a=0.3;
+                            marker_sphere.colors.push_back(c);
+                        }
                     }
                     break;
                 }
@@ -460,7 +462,9 @@ int main(int argc, char** argv){
 
     n_.param("pointcloud2_cluster_tracking/size", size , 2);
     n_.param("pointcloud2_cluster_tracking/method", method , 1);
+    n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
     n_.param("pointcloud2_cluster_tracking/marker_flag", marker_flag , 0);
+    n_.param("pointcloud2_cluster_tracking/maxHungDist", maxHungDist , 1000);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));
     n_.param("pointcloud2_cluster_tracking/input_topic", input_topic , std::string("pointcloud2_clustering/clusters"));

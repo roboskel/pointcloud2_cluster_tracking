@@ -1,95 +1,68 @@
 /********************************************************************
  ********************************************************************
- ** C++ class implementation of the Hungarian algorithm by David Schwarz, 2012
  **
+ ** libhungarian by Cyrill Stachniss, 2004
+ ** http://www2.informatik.uni-freiburg.de/~stachnis/misc.html
  **
- ** O(n^3) implementation derived from libhungarian by Cyrill Stachniss, 2004
+ ** Modified and adapted from C to C++ by Justin Buchanan
  **
- **
- ** Solving the Minimum Assignment Problem using the 
+ ** Solving the Minimum Assignment Problem using the
  ** Hungarian Method.
  **
  ** ** This file may be freely copied and distributed! **
  **
+ ** Parts of the used code was originally provided by the
+ ** "Stanford GraphGase", but I made changes to this code.
+ ** As asked by  the copyright node of the "Stanford GraphGase",
+ ** I hereby proclaim that this file are *NOT* part of the
+ ** "Stanford GraphGase" distrubition!
  **
  ** This file is distributed in the hope that it will be useful,
- ** but WITHOUT ANY WARRANTY; without even the implied 
+ ** but WITHOUT ANY WARRANTY; without even the implied
  ** warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- ** PURPOSE.  
+ ** PURPOSE.
+ **
+ ** https://github.com/RoboJackets/hungarian
  **
  ********************************************************************
  ********************************************************************/
 
-#include <iostream>
+#pragma once
+
 #include <vector>
-#include <stdio.h>
 
-#ifndef HUNGARIAN_H
-#define HUNGARIAN_H
-
-using std::vector;
+namespace Hungarian {
 
 typedef enum {
-	HUNGARIAN_MODE_MINIMIZE_COST,
-	HUNGARIAN_MODE_MAXIMIZE_UTIL,
+  MODE_MINIMIZE_COST,
+  MODE_MAXIMIZE_UTIL,
 } MODE;
 
 typedef enum {
-	HUNGARIAN_NOT_ASSIGNED,
-	HUNGARIAN_ASSIGNED,
+  NOT_ASSIGNED,
+  ASSIGNED,
 } ASSIGN;
 
+using Matrix = std::vector<std::vector<int>>;
 
-
-class Hungarian
-{
-
-public:
-	/** This method initialize the hungarian_problem structure and init 
-	 *  the  cost matrices (missing lines or columns are filled with 0).
-	 *  It returns the size of the quadratic(!) assignment matrix. **/
-
-	Hungarian();
-	Hungarian(const vector<vector<int> >&, int, int, MODE);
-
-	int init(const vector<vector<int> >& input_matrix, 
-			   int rows, 
-			   int cols, 
-			   MODE mode);
-
-	/** This method computes the optimal assignment. **/
-	bool solve();
-
-	/** Accessor for the cost **/
-	int cost() const;
-
-	/** Reference accessor for assignment **/
-	const vector<vector<int> >& assignment() const;
-
-	/** Print the computed optimal assignment. **/
-	void print_assignment();
-
-	/** Print the cost matrix. **/
-	void print_cost();
-
-	/** Print cost matrix and assignment matrix. **/
-	void print_status();
-
-protected:
-	bool check_solution(const vector<int>& row_dec, const vector<int>& col_inc, const vector<int>& col_vertex);
-	bool assign_solution(const vector<int>& row_dec, const vector<int>& col_inc, const vector<int>& col_vertex);
-
-private:
-
-	int m_cost;
-	int m_rows;
-	int m_cols;
-	vector<vector<int> > m_costmatrix;
-	vector<vector<int> > m_assignment;
-
+struct Result {
+  // True if the algorithm completed and found a solution.
+  bool success = false;
+  // The solution
+  Matrix assignment;
+  // A normalized form of the input cost matrix.
+  Matrix cost;
+  // The costs incurred by the assignment
+  int totalCost = 0;
 };
 
-#endif
+/**
+ * Runs the hungarian algorithm on the input cost matrix and returns a result
+ * containing the normalized (square) cost matrix and a solution if one was
+ * found.
+ */
+Result Solve(const Matrix &input, MODE mode);
 
+void PrintMatrix(const Matrix &m);
 
-
+};  // namespace Hungarian

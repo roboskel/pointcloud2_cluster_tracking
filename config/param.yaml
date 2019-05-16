@@ -6,3 +6,4 @@ method: 2 #1 if you want to delete overlap from clusters and 2 if you do not wan
 size: 2
 overlap: 0.2
 marker_flag: 1 # (int)marker_flag=1 : markers activated
+maxHungDist: 800 

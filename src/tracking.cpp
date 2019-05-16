@@ -13,6 +13,19 @@
 #include <pcl/filters/extract_indices.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <pointcloud_msgs/PointCloud2_Segments.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
+
+
+int marker_flag;
+
+visualization_msgs::Marker marker_sphere;
+visualization_msgs::Marker marker_line;
+
+std::vector<float> red = {0, 0, 1, 1, 1, 102.0/255, 102.0/255, 204.0/255, 0, 1};
+std::vector<float> green = {0, 1.0, 0, 1, 1, 102.0/255, 102.0/255, 0, 1, 152.0/255};
+std::vector<float> blue = {1.0, 0, 0, 0, 1, 152.0/255, 52.0/255, 152.0/255, 1, 52.0/255};
+
 
 class Centroid_tracking{
 public:
@@ -89,10 +102,60 @@ public:
 
         dists = hungarian.assignment();
 
+        if(marker_flag==1) {
+
+            marker_line.points.clear();        
+            marker_sphere.points.clear();
+            marker_sphere.colors.clear();
+            marker_line.colors.clear();
+        }
+
         for(unsigned j=0; j < size_new; j++){
             for(unsigned i=0; i < size_old; i++){
                 if (dists[i][j] == 1){
                     msg.cluster_id[j] = base_msg.cluster_id[i];
+
+                    if(marker_flag==1) {
+
+                        uint mod = msg.cluster_id[j] % 10;
+
+                            
+                        std_msgs::ColorRGBA c;
+                            
+                        c.r = red[mod];
+                        c.g = green[mod];
+                        c.b=blue[mod];
+                        c.a=0.7;
+
+
+                        geometry_msgs::Point p;
+                           
+                        p.x = base_centroid_vec[i][0];
+                        p.y = base_centroid_vec[i][1];
+                        p.z = base_centroid_vec[i][2];
+
+                                                   
+                        marker_line.points.push_back(p);
+                        marker_sphere.points.push_back(p);
+
+
+                        geometry_msgs::Point pp;                    
+
+                        pp.x = msg_centroid_vec[j][0];
+                        pp.y = msg_centroid_vec[j][1];
+                        pp.z = msg_centroid_vec[j][2];
+
+                           
+                        marker_line.points.push_back(pp);
+                        marker_sphere.points.push_back(pp);
+
+
+                        marker_line.colors.push_back(c);
+                        marker_line.colors.push_back(c);
+                        marker_sphere.colors.push_back(c);
+                        c.a=0.3;
+                        marker_sphere.colors.push_back(c);
+                    }
                     break;
                 }
             }
@@ -103,6 +166,7 @@ public:
 
 ros::Publisher pub;
 ros::Subscriber sub;
+ros::Publisher marker_pub;
 
 int size , max_id ,method;
 double overlap, offset ;
@@ -110,6 +174,8 @@ double overlap, offset ;
 
 std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 std::vector<pointcloud_msgs::PointCloud2_Segments> new_v(2);
+
+visualization_msgs::MarkerArray marker;
 
 
 std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segments& cls){
@@ -214,6 +280,47 @@ pointcloud_msgs::PointCloud2_Segments clusters_in_overlap (const pointcloud_msgs
 
 
 void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
+
+
+    if(marker_flag==1) {
+
+        marker_sphere.ns = "shapeOfsphere";
+        marker_sphere.id = 0;
+        marker_sphere.type = 7;
+        marker_sphere.action = visualization_msgs::Marker::ADD;
+        marker_sphere.pose.orientation.w = 1.0;
+        marker_sphere.color.a = 1.0;
+
+        marker_sphere.scale.x = 0.3;
+        marker_sphere.scale.y = 0.3;
+        marker_sphere.scale.z = 0.3;
+
+        marker_line.ns = "shapeOfline";
+        marker_line.id = 1;    
+        marker_line.type = 5;
+        marker_line.action = visualization_msgs::Marker::ADD;
+        marker_line.pose.orientation.w = 1.0;
+        marker_line.color.a = 1.0;
+
+        marker_line.scale.x = 0.1;
+        marker_line.scale.y = 0.1;
+        marker_line.scale.z = 0.1;
+
+
+        marker.markers.push_back(marker_sphere);
+        marker.markers.push_back(marker_line);
+
+        marker_sphere.header.frame_id = "base_link";
+        marker_sphere.header.stamp = msg.header.stamp;
+        marker_sphere.lifetime = ros::Duration();
+
+
+        marker_line.header.frame_id = "base_link";
+        marker_line.header.stamp = msg.header.stamp;
+        marker_line.lifetime = ros::Duration();
+    }
+
+
 
     double overlap_height_min , overlap_height_max ;
 
@@ -331,6 +438,13 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     
 
     pub.publish(c_);
+
+    if(marker_flag==1) {
+
+        marker_pub.publish(marker);
+
+        marker.markers.clear();
+    }
 }
 
 
@@ -341,17 +455,24 @@ int main(int argc, char** argv){
 
     std::string out_topic;
     std::string input_topic;
+    std::string marker_topic;
 
 
     n_.param("pointcloud2_cluster_tracking/size", size , 2);
     n_.param("pointcloud2_cluster_tracking/method", method , 1);
-    n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
+    n_.param("pointcloud2_cluster_tracking/marker_flag", marker_flag , 0);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));
     n_.param("pointcloud2_cluster_tracking/input_topic", input_topic , std::string("pointcloud2_clustering/clusters"));
 
+    if(marker_flag==1) {
+
+        n_.param("pointcloud2_cluster_tracking/marker_topic", marker_topic , std::string("visualization_marker"));
+        marker_pub = n_.advertise<visualization_msgs::MarkerArray>(marker_topic, 1);
+    }
+
     sub = n_.subscribe( input_topic, 1 , callback);
     pub = n_.advertise<pointcloud_msgs::PointCloud2_Segments>( out_topic, 1);
-
+    
     ros::spin();
 }

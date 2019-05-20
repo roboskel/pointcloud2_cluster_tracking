@@ -16,13 +16,15 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
 
-
-
-int marker_flag;
-int maxHungDist;
+bool first_time = true;
+bool trackTheUntracked;
+int marker_flag, maxHungDist;
 
 visualization_msgs::Marker marker_sphere;
 visualization_msgs::Marker marker_line;
+
+std::vector<int> ids;
+std::vector<Eigen::Vector4f> centroids;
 
 std::vector<float> red = {0, 0, 1, 1, 1, 102.0/255, 102.0/255, 204.0/255, 0, 1};
 std::vector<float> green = {0, 1.0, 0, 1, 1, 102.0/255, 102.0/255, 0, 1, 152.0/255};
@@ -47,6 +49,12 @@ public:
         std::vector<Eigen::Vector4f> msg_centroid_vec;
         std::vector<Eigen::Vector4f> base_centroid_vec;
 
+        std::vector<bool> trackedOrnotIds;
+        std::vector<Eigen::Vector4f> untracked_centr;
+        std::vector<Eigen::Vector4f> untracked_msg;
+        
+
+
         //first frame 
         for (int i=0; i < base_msg.clusters.size(); i++)
         {
@@ -60,7 +68,13 @@ public:
             Eigen::Vector4f base_centroid;
             pcl::compute3DCentroid ( cloud2 , base_centroid);
             base_centroid_vec.push_back( base_centroid );
+
+            if(first_time==true && trackTheUntracked == true){
+                centroids.push_back(base_centroid);
+                ids.push_back(i);
+            }
         }
+        first_time = false;
         //second frame
         for (int i=0; i < msg.clusters.size(); i++)
         {
@@ -75,8 +89,14 @@ public:
 
             msg_centroid_vec.push_back( base_centroid );
             msg.cluster_id[i] = -1;
-
         }
+
+        if(trackTheUntracked == true){
+            for (int i=0; i < ids.size(); i++) 
+                trackedOrnotIds.push_back(false);
+        }
+
+
 
         size_t size_old = base_centroid_vec.size();
         size_t size_new = msg_centroid_vec.size();
@@ -85,7 +105,6 @@ public:
 
         for(unsigned i=0; i < size_old; i++){
             for(unsigned j=0; j < size_new; j++){
-                if(i < size_old and j < size_new)
                     dists[i][j] = 1000 * sqrt(pow(base_centroid_vec[i][0]-msg_centroid_vec[j][0], 2) + pow(base_centroid_vec[i][1]-msg_centroid_vec[j][1], 2));                 
             }
         }
@@ -115,6 +134,19 @@ public:
 
                     if (dist<maxHungDist) {
                         msg.cluster_id[j] = base_msg.cluster_id[i];
+
+                        if(trackTheUntracked == true){
+
+                            for (unsigned m=0; m<ids.size(); m++){
+
+                                if(ids[m] == msg.cluster_id[j]){
+
+                                    centroids[m]=msg_centroid_vec[j];
+                                    trackedOrnotIds[m] = true;
+                                    break;
+                                }
+                            }
+                        }
 
                         if(marker_flag==1) {
 
@@ -161,7 +193,93 @@ public:
                     break;
                 }
             }
-            msg.cluster_id[j] = msg.cluster_id[j] == -1 ? ++max_id : msg.cluster_id[j];
+            if(trackTheUntracked == true){
+
+                if(msg.cluster_id[j] == -1) untracked_msg.push_back(msg_centroid_vec[j]);
+            }
+            else{
+                msg.cluster_id[j] = msg.cluster_id[j] == -1 ? ++max_id : msg.cluster_id[j];
+            }
+        }
+
+ 
+        //--------------------------try to track the untracked clusters----------------------------//
+
+
+        if(trackTheUntracked == true){
+
+
+            for (int i=0; i < ids.size(); i++) {
+                if (trackedOrnotIds[i] == false)
+                    untracked_centr.push_back(centroids[i]);
+            }
+
+            int centrs_size = untracked_centr.size();
+            int msg_size = untracked_msg.size();
+
+            if (centrs_size != 0 && msg_size != 0 ) {
+
+                std::vector<std::vector<int> > newdists(centrs_size, std::vector<int>(msg_size , 10000));// TODO currently, 10000 is the maximum (2d) int distance with a 10 meter laser scanner. Initial value represents a point connected to bottom.
+
+                for(unsigned i=0; i < centrs_size; i++){
+                    for(unsigned j=0; j < msg_size; j++){
+                            newdists[i][j] = 1000 * sqrt(pow(untracked_centr[i][0]-untracked_msg[j][0], 2) + pow(untracked_centr[i][1]-untracked_msg[j][1], 2));                 
+                    }
+                }
+
+                Hungarian::Result p = Hungarian::Solve(newdists, Hungarian::MODE_MINIMIZE_COST);
+
+                // Hungarian::PrintMatrix(p.assignment);
+
+                newdists = p.assignment;
+
+                double distt;
+                for(unsigned j=0; j < msg_size; j++){
+                    for(unsigned i=0; i < centrs_size; i++){
+
+                        if (newdists[i][j] == 1){
+
+                            distt = 1000 * sqrt(pow(untracked_centr[i][0]-untracked_msg[j][0], 2) + pow(untracked_centr[i][1]-untracked_msg[j][1], 2));
+
+                            if (distt<maxHungDist) {
+
+                                int temp_pos = -1;
+
+
+                                for(int k=0; k < centroids.size(); k++) {
+                                    if(untracked_centr[i] == centroids[k] && trackedOrnotIds[k] == false ){
+
+                                        temp_pos = k;
+                                        trackedOrnotIds[k] = true;
+                                        break;
+                                    }
+                                }
+          
+                                if(temp_pos != -1) {
+
+                                    for(int k=0; k < size_new; k++) {
+                                        if(untracked_msg[j] == msg_centroid_vec[k] && msg.cluster_id[k] == -1 ){
+
+                                            msg.cluster_id[k] = ids[temp_pos];
+                                            centroids[temp_pos]=msg_centroid_vec[k];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                                              
+                            break; 
+                        }           
+                    }
+                }
+            }
+            for(int j=0; j < size_new; j++) {
+                if(msg.cluster_id[j] == -1){
+                    msg.cluster_id[j] = ++max_id;
+                    centroids.push_back(msg_centroid_vec[j]);
+                    ids.push_back(max_id);
+                }
+            }
         }
     }
 };
@@ -315,7 +433,6 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         marker_sphere.header.stamp = msg.header.stamp;
         marker_sphere.lifetime = ros::Duration();
 
-
         marker_line.header.frame_id = marker_frame_id;
         marker_line.header.stamp = msg.header.stamp;
         marker_line.lifetime = ros::Duration();
@@ -467,6 +584,7 @@ int main(int argc, char** argv){
     n_.param("pointcloud2_cluster_tracking/overlap", overlap , 0.2);
     n_.param("pointcloud2_cluster_tracking/marker_flag", marker_flag , 0);
     n_.param("pointcloud2_cluster_tracking/maxHungDist", maxHungDist , 1000);
+    n_.param("pointcloud2_cluster_tracking/trackTheUntracked", trackTheUntracked , false);
 
     n_.param("pointcloud2_cluster_tracking/out_topic", out_topic , std::string("/pointcloud2_cluster_tracking/clusters"));
     n_.param("pointcloud2_cluster_tracking/input_topic", input_topic , std::string("pointcloud2_clustering/clusters"));
@@ -475,7 +593,6 @@ int main(int argc, char** argv){
 
         n_.param("pointcloud2_cluster_tracking/marker_topic", marker_topic , std::string("visualization_marker"));
         n_.param("pointcloud2_cluster_tracking/marker_frame_id", marker_frame_id , std::string("/base_link"));
-
         marker_pub = n_.advertise<visualization_msgs::MarkerArray>(marker_topic, 1);
     }
 

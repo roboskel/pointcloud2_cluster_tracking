@@ -3,9 +3,10 @@ out_topic: pointcloud2_cluster_tracking/clusters
 marker_topic: visualization_marker
 marker_frame_id: "/base_link"
 
-method: 1 #1 if you want to delete overlap from clusters and 2 if you do not want to delete the overlap from clusters
+method: 2 #1 if you want to delete overlap from clusters and 2 if you do not want to delete the overlap from clusters
 
 size: 2
 overlap: 0.2
 marker_flag: 1 # (int)marker_flag=1 : markers activated
 maxHungDist: 800 
+trackTheUntracked: true

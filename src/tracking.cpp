@@ -178,6 +178,7 @@ std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
 std::vector<pointcloud_msgs::PointCloud2_Segments> new_v(2);
 
 visualization_msgs::MarkerArray marker;
+std::string marker_frame_id;
 
 
 std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segments& cls){
@@ -273,8 +274,9 @@ pointcloud_msgs::PointCloud2_Segments clusters_in_overlap (const pointcloud_msgs
         pcl::PCLPointCloud2 pcl_cloud;
         pcl::toPCLPointCloud2(*cloud2, pcl_cloud);
         pcl_conversions::fromPCL(pcl_cloud, pc1);
+    
+        output.clusters.push_back(pc1);
     }
-    output.clusters.push_back(pc1);
 
     return output;
 }
@@ -309,17 +311,17 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
         marker_line.scale.z = 0.1;
 
 
-        marker.markers.push_back(marker_sphere);
-        marker.markers.push_back(marker_line);
-
-        marker_sphere.header.frame_id = "base_link";
+        marker_sphere.header.frame_id = marker_frame_id;
         marker_sphere.header.stamp = msg.header.stamp;
         marker_sphere.lifetime = ros::Duration();
 
 
-        marker_line.header.frame_id = "base_link";
+        marker_line.header.frame_id = marker_frame_id;
         marker_line.header.stamp = msg.header.stamp;
         marker_line.lifetime = ros::Duration();
+
+        marker.markers.push_back(marker_sphere);
+        marker.markers.push_back(marker_line);
     }
 
 
@@ -339,7 +341,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     Centroid_tracking* t;
 
-     if (v_.size() > size){
+    if (v_.size() > size){
         v_.erase(v_.begin());
     }
 
@@ -441,7 +443,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     pub.publish(c_);
 
-    if(marker_flag==1) {
+    if(marker_flag==1 && t != NULL) {
 
         marker_pub.publish(marker);
 
@@ -472,6 +474,8 @@ int main(int argc, char** argv){
     if(marker_flag==1) {
 
         n_.param("pointcloud2_cluster_tracking/marker_topic", marker_topic , std::string("visualization_marker"));
+        n_.param("pointcloud2_cluster_tracking/marker_frame_id", marker_frame_id , std::string("/base_link"));
+
         marker_pub = n_.advertise<visualization_msgs::MarkerArray>(marker_topic, 1);
     }
 

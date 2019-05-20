@@ -1,7 +1,9 @@
 input_topic: pointcloud2_clustering/clusters
 out_topic: pointcloud2_cluster_tracking/clusters
+marker_topic: visualization_marker
+marker_frame_id: "/base_link"
 
-method: 2 #1 if you want to delete overlap from clusters and 2 if you do not want to delete the overlap from clusters
+method: 1 #1 if you want to delete overlap from clusters and 2 if you do not want to delete the overlap from clusters
 
 size: 2
 overlap: 0.2

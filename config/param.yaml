@@ -7,6 +7,8 @@ method: 2 #1 if you want to delete overlap from clusters and 2 if you do not wan
 
 size: 2
 overlap: 0.2
-marker_flag: 1 # (int)marker_flag=1 : markers activated
-maxHungDist: 800 
+marker_flag: true # (bool)marker_flag=true : markers for centroids activated
+maxHungDist: 700 
 trackTheUntracked: true
+minMotionDist: 1000.0
+max_dist: 0.31 # when two clusters are closer from max_dist (meters)

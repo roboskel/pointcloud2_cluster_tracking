@@ -292,7 +292,6 @@ bool checkforsameXYpoints(pcl::PointCloud<pcl::PointXYZ> pcz_max, pcl::PointClou
     return same;
 }
 
-
 void checkIfClusterMove(pointcloud_msgs::PointCloud2_Segments msg, size_t size_new){  //check if a cluster moves if it does, then store it
 
 
@@ -632,6 +631,10 @@ public:
         //------------------------------check if cluster is in movement---------------------------------//
 
         checkIfClusterMove(msg, size_new);
+        
+        if(clusterInMotion.size()==1) {
+            msg.idForTracking=clusterInMotion[0];
+        }
 
        //---------------------------------------------------------------------------------------------//
     }
@@ -854,6 +857,8 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
 
     }
 
+    c_.idForTracking = msg.idForTracking;
+
     if ( t != NULL ){
         if ( method == 1 ){
             t-> track( new_v[1] );
@@ -861,9 +866,11 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
             for (unsigned i=0; i < new_v[1].cluster_id.size(); i++){
                 v_[1].cluster_id.push_back(new_v[1].cluster_id[i]);
             }
+            c_.idForTracking = new_v[1].idForTracking;
         }
         else if ( method == 2){
             t-> track( v_[1] );
+            c_.idForTracking = v_[1].idForTracking;
         }
     }
 
@@ -890,7 +897,6 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     c_.rec_time = msg.rec_time;
     c_.middle_z = msg.middle_z;
     
-
     pub.publish(c_);
 
     if(marker_flag==true && t != NULL) {

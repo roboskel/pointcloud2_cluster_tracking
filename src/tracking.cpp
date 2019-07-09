@@ -342,7 +342,10 @@ void checkIfClusterMove(pointcloud_msgs::PointCloud2_Segments msg, size_t size_n
                     //                                double check                    //
                     pczmax=saveAllZPointsFrom(msg.clusters[j], (max_z + msg.middle_z)/2);
                     pczmin=saveAllZPointsUntil(msg.clusters[j],  (min_z + msg.middle_z)/2);
-                   bool samepoints=checkforsameXYpoints(pczmax, pczmin);
+                    bool samepoints = true;
+                    if(pczmax.size()!=0 and pczmin.size()!=0 ){
+                        samepoints=checkforsameXYpoints(pczmax, pczmin);
+                    }
                    if(samepoints==false){
 
                         clusterInMotion.push_back(msg.cluster_id[j]);

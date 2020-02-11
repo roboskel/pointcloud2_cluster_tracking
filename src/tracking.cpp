@@ -12,7 +12,7 @@
 #include <sensor_msgs/ChannelFloat32.h>
 #include <pcl/filters/extract_indices.h>
 #include <sensor_msgs/point_cloud_conversion.h>
-#include <pointcloud_msgs/PointCloud2_Segments.h>
+#include <roboskel_msgs/PointCloud2_Segments.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
 #include <algorithm>    // std::find
@@ -118,7 +118,7 @@ pcl::PointCloud<pcl::PointXYZ> saveAllZPointsUntil(sensor_msgs::PointCloud2 clus
 }
 
 
-void trackUntrackedClusters(std::vector<Eigen::Vector4f> untracked_msg, pointcloud_msgs::PointCloud2_Segments& msg, std::vector<Eigen::Vector4f> msg_centroid_vec, size_t size_new  ){ //try to track the untracked clusters with untracked centroids 
+void trackUntrackedClusters(std::vector<Eigen::Vector4f> untracked_msg, roboskel_msgs::PointCloud2_Segments& msg, std::vector<Eigen::Vector4f> msg_centroid_vec, size_t size_new  ){ //try to track the untracked clusters with untracked centroids 
 
     std::vector<Eigen::Vector4f> untracked_centr;
 
@@ -186,7 +186,7 @@ void trackUntrackedClusters(std::vector<Eigen::Vector4f> untracked_msg, pointclo
 }
 
 
-void checkClustersDistance(pointcloud_msgs::PointCloud2_Segments base_msg, size_t size_old, pointcloud_msgs::PointCloud2_Segments& msg ){ // check if the distance between two clusters is less than max_dist in base_msg. if it is true check if one of two clusters missing from the msg
+void checkClustersDistance(roboskel_msgs::PointCloud2_Segments base_msg, size_t size_old, roboskel_msgs::PointCloud2_Segments& msg ){ // check if the distance between two clusters is less than max_dist in base_msg. if it is true check if one of two clusters missing from the msg
 
     std::vector<pcl::PointCloud<pcl::PointXYZ>> pcz(size_old); 
 
@@ -292,7 +292,7 @@ bool checkforsameXYpoints(pcl::PointCloud<pcl::PointXYZ> pcz_max, pcl::PointClou
     return same;
 }
 
-void checkIfClusterMove(pointcloud_msgs::PointCloud2_Segments msg, size_t size_new){  //check if a cluster moves if it does, then store it
+void checkIfClusterMove(roboskel_msgs::PointCloud2_Segments msg, size_t size_new){  //check if a cluster moves if it does, then store it
 
 
     for(unsigned j=0; j < size_new; j++){
@@ -365,15 +365,15 @@ public:
 
     int max_id ;
 
-    pointcloud_msgs::PointCloud2_Segments base_msg;
+    roboskel_msgs::PointCloud2_Segments base_msg;
 
-    Centroid_tracking ( pointcloud_msgs::PointCloud2_Segments& base_msg, int max_id ) 
+    Centroid_tracking ( roboskel_msgs::PointCloud2_Segments& base_msg, int max_id ) 
     {
         this->base_msg = base_msg ;
         this->max_id = max_id ;
     }
 
-    void track ( pointcloud_msgs::PointCloud2_Segments& msg ) {
+    void track ( roboskel_msgs::PointCloud2_Segments& msg ) {
 
         std::cout << "!!" << std::endl;
 
@@ -653,20 +653,20 @@ int size , max_id ,method;
 double overlap, offset ;
 
 
-std::vector<pointcloud_msgs::PointCloud2_Segments> v_;
-std::vector<pointcloud_msgs::PointCloud2_Segments> new_v(2);
+std::vector<roboskel_msgs::PointCloud2_Segments> v_;
+std::vector<roboskel_msgs::PointCloud2_Segments> new_v(2);
 
 visualization_msgs::MarkerArray marker;
 std::string marker_frame_id;
 
 
-std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segments& cls){
+std::pair<double,double> overlap_range (const roboskel_msgs::PointCloud2_Segments& cls){
 
     double z_max = 0 ;
     double height_after ,height_before ;
     double z_min = std::numeric_limits<double>::max();
 
-    std::vector<pointcloud_msgs::PointCloud2_Segments> vec;
+    std::vector<roboskel_msgs::PointCloud2_Segments> vec;
 
     vec.push_back(cls);
 
@@ -718,10 +718,10 @@ std::pair<double,double> overlap_range (const pointcloud_msgs::PointCloud2_Segme
 
 }
 
-pointcloud_msgs::PointCloud2_Segments clusters_in_overlap (const pointcloud_msgs::PointCloud2_Segments& cl , double z_overlap_min , double z_overlap_max ){
+roboskel_msgs::PointCloud2_Segments clusters_in_overlap (const roboskel_msgs::PointCloud2_Segments& cl , double z_overlap_min , double z_overlap_max ){
 
     sensor_msgs::PointCloud2 pc1;
-    pointcloud_msgs::PointCloud2_Segments output;
+    roboskel_msgs::PointCloud2_Segments output;
 
     for ( unsigned i=0; i < cl.clusters.size(); i++){
 
@@ -761,7 +761,7 @@ pointcloud_msgs::PointCloud2_Segments clusters_in_overlap (const pointcloud_msgs
 
 
 
-void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
+void callback (const roboskel_msgs::PointCloud2_Segments& msg ){
 
 
     if(marker_flag==1) {
@@ -806,7 +806,7 @@ void callback (const pointcloud_msgs::PointCloud2_Segments& msg ){
     double overlap_height_min , overlap_height_max ;
 
     sensor_msgs::PointCloud cloud;
-    pointcloud_msgs::PointCloud2_Segments c_;
+    roboskel_msgs::PointCloud2_Segments c_;
 
     if ( method == 1 ){
         std::pair<double,double> z_height = overlap_range(msg);
@@ -941,7 +941,7 @@ int main(int argc, char** argv){
     }
 
     sub = n_.subscribe( input_topic, 1 , callback);
-    pub = n_.advertise<pointcloud_msgs::PointCloud2_Segments>( out_topic, 1);
+    pub = n_.advertise<roboskel_msgs::PointCloud2_Segments>( out_topic, 1);
     
     ros::spin();
 }

@@ -16,7 +16,7 @@
   <license>TODO</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>pointcloud_msgs</depend>
+  <depend>roboskel_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>pcl_ros</depend>

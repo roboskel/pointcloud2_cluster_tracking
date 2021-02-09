@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <launch>
+	<arg name="method" default="2"/>
+	<!-- Use method 1 if you want to delete overlap from clusters and 2 if you do not want to delete the overlap from clusters -->
+
     <node pkg="pointcloud2_cluster_tracking" type="pointcloud2_cluster_tracking" respawn="false" name="pointcloud2_cluster_tracking" output="screen">
         <rosparam file="$(find pointcloud2_cluster_tracking)/config/param.yaml" command="load" />
+        <rosparam param="method" subst_value="True">$(arg method)</rosparam>
     </node>
 </launch>
